@@ -1,5 +1,8 @@
 import numpy as np
 import cv2
+from subprocess import call
+
+call(["fswebcam", "-r","640x480","test.jpg","-S","2"])
 
 face_cascade = cv2.CascadeClassifier('/home/pi/Home-Automation/Camera/haarcascade_frontalface_default.xml')
 #eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')

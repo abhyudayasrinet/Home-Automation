@@ -1,18 +1,16 @@
 import speech_recognition as sr
 
+r = sr.Recognizer()
 
-def callback(rec, audio):
-    command = rec.recognize_google(audio)
-    print(command)
-
-
-speech_recognizer = sr.Recognizer()
-#print("wtf")
-with sr.Microphone() as source:
-    #print("start")
-    audio = speech_recognizer.record(source, 4)
-    print("done listening!")
-    #speech_recognizer.listen_in_background(source, callback)
-    #callback(speech_recognizer, audio)
-    command = speech_recognizer.recognize_google(audio)
-    print(command)
+while 1:
+    try:
+        with sr.Microphone() as source:
+            print("listening")
+            audio = r.listen(source)
+            print("done listening")
+            command = r.recognize_google(audio)
+            print("you said " + str(command))
+            if(command == "quit"):
+                break
+    except Exception as e:
+            print("Error occured : ", e)
