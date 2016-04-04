@@ -1,8 +1,12 @@
 import speech_recognition as sr
 import subprocess
 import time
+import dht11
 import RPi.GPIO as GPIO
 import cv2
+import forecastio
+import requests
+import json
 
 auto_lights = False  # indicate if automatics lights are on or off
 
@@ -12,9 +16,9 @@ def check_movement():
     return 1 if movement someone's presence is detected
     else return 0
     '''
-    GPIO.setup(3, GPIO.IN)
-    GPIO.setup(16, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    movement = GPIO.input(3)
+    GPIO.setup(2, GPIO.IN)
+    GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    movement = GPIO.input(2)
     return movement
 
 
@@ -22,16 +26,16 @@ def turn_on_led():
     '''
     Turns on the led
     '''
-    GPIO.setup(7, GPIO.OUT)
-    GPIO.output(7, GPIO.HIGH)  # led on
+    GPIO.setup(4, GPIO.OUT)
+    GPIO.output(4, GPIO.HIGH)  # led on
 
 
 def turn_off_led():
     '''
     Turns off the led
     '''
-    GPIO.setup(7, GPIO.OUT)
-    GPIO.output(7, GPIO.LOW)  # led off
+    GPIO.setup(4, GPIO.OUT)
+    GPIO.output(4, GPIO.LOW)  # led off
 
 
 def speak(message):
@@ -47,8 +51,8 @@ def check_water_level():
     check  if water level is almost at the top
     distance < 5cm
     '''
-    TRIG = 16  # 23
-    ECHO = 18  # 24
+    TRIG = 23
+    ECHO = 24
 
     GPIO.setup(TRIG, GPIO.OUT)
     GPIO.setup(ECHO, GPIO.IN)
@@ -99,11 +103,64 @@ def check_door():
     cv2.imwrite('output.jpg', img)
     return True
 
+
+def increase_temperature():
+    '''
+    increases the temperature
+    '''
+    GPIO.cleanup()
+    GPIO.setmode(GPIO.BCM)
+
+    # read data using pin 14
+    instance = dht11.DHT11(pin=14)
+    result = instance.read()
+    while not result.is_valid():
+        result = instance.read()
+
+    print("temperature : " + str(result.temperature))
+    speak("current temperature is " + str(result.temperature))
+    speak("increasing temperature now..")
+
+
+def decrease_temperature():
+    '''
+    deceases the temperature
+    '''
+    pass
+
+
+def weather_forecast():
+    '''
+    Tells the current weather forecast
+    '''
+    API_KEY = "f5af7c9d5dcae926c4e5fcf75ea35dc6"
+
+    send_url = "http://ip-api.com/json"
+
+    r = requests.get(send_url)
+    j = json.loads(r.text)
+
+    latitude = j['lat']
+    longitude = j['lon']
+    print("current latitude, longitude is ", latitude, longitude)
+
+    forecast = forecastio.load_forecast(API_KEY, latitude, longitude)
+    datapoint = forecast.currently()
+
+    print(datapoint.summary)
+    print(datapoint.temperature)
+    print(datapoint.precipProbability)
+    speak("weather forecast says " + str(datapoint.summary))
+    speak("Current temperature is " + str(datapoint.temperature) + "Celsius")
+    speak("Probability of rainfall is " + str(datapoint.precipProbability * 100) + "percent")
+
+
+
 if __name__ == "__main__":
     global auto_lights
     auto_lights = False
     r = sr.Recognizer()
-    GPIO.setmode(GPIO.BOARD)
+    GPIO.setmode(GPIO.BCM)
     while(True):
         if(auto_lights):  # check to switch on lights through auto lighting
             if(check_movement()):
@@ -145,8 +202,14 @@ if __name__ == "__main__":
                         subprocess.Popen(["xdg-open", "output.jpg"])
                     else:
                         speak("there is no one at the door")
-
+                elif(command == "increase temperature"):
+                    speak("increasing temperature")
+                    increase_temperature()
+                elif(command == "decrease temperature"):
+                    speak("decreasing temperature")
+                    decrease_temperature()
+                elif(command == "weather forecast"):
+                    weather_forecast()
         except Exception as e:
                 print("Error occured : ", e)
                 speak("could not understand please repeat")
-
