@@ -2,7 +2,7 @@ import speech_recognition as sr
 import subprocess
 import time
 import RPi.GPIO as GPIO
-
+import cv2
 
 auto_lights = False  # indicate if automatics lights are on or off
 
@@ -74,6 +74,31 @@ def check_water_level():
     return round(distance, 2) < 6
 
 
+def check_door():
+    '''
+    takes a snap shot at the door and searches for a face and reports back
+    '''
+    subprocess.call(["fswebcam", "-r", "640x480", "test.jpg", "-S", "2"])
+    #image_process = subprocess.Popen(["fswebcam", "-r", "640x480", "test.jpg", "-S", "2"])
+    #image_process.wait()
+    #subprocess.Popen(["xdg-open", "test.jpg"])
+    face_cascade = cv2.CascadeClassifier('/home/pi/Home-Automation/Camera/haarcascade_frontalface_default.xml')
+    img = cv2.imread('test.jpg')
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+    if(len(faces) == 0):
+        return False
+
+    for (x, y, w, h) in faces:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+    #cv2.imshow('img', img)
+    #cv2.waitKey(0)
+    #cv2.destroyAllWindows()
+    cv2.imwrite('output.jpg', img)
+    return True
+
 if __name__ == "__main__":
     global auto_lights
     auto_lights = False
@@ -113,6 +138,14 @@ if __name__ == "__main__":
                 elif(command == "turn off auto lights"):
                     auto_lights = False
                     speak("auto lights turned off")
+                elif(command == "check"):
+                    speak("checking the door")
+                    if(check_door()):
+                        speak("someone is at the door")
+                        subprocess.Popen(["xdg-open", "output.jpg"])
+                    else:
+                        speak("there is no one at the door")
+
         except Exception as e:
                 print("Error occured : ", e)
                 speak("could not understand please repeat")
