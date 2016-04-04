@@ -4,7 +4,7 @@ import time
 import RPi.GPIO as GPIO
 
 
-lock_lights = False  # prevent lights from being switched off
+auto_lights = False  # indicate if automatics lights are on or off
 
 
 def check_movement():
@@ -18,13 +18,10 @@ def check_movement():
     return movement
 
 
-def turn_on_led(lock):
+def turn_on_led():
     '''
     Turns on the led
     '''
-    global lock_lights
-    lock_lights = lock
-    speak("turning on the lights")
     GPIO.setup(7, GPIO.OUT)
     GPIO.output(7, GPIO.HIGH)  # led on
 
@@ -33,9 +30,6 @@ def turn_off_led():
     '''
     Turns off the led
     '''
-    global lock_lights
-    lock_lights = False
-    speak("turning off the lights")
     GPIO.setup(7, GPIO.OUT)
     GPIO.output(7, GPIO.LOW)  # led off
 
@@ -76,21 +70,26 @@ def check_water_level():
     pulse_duration = pulse_end - pulse_start
 
     distance = pulse_duration * 17150
-
+    print("water level : ", distance)
     return round(distance, 2) < 6
 
 
 if __name__ == "__main__":
-    lock_lights = False
+    global auto_lights
+    auto_lights = False
     r = sr.Recognizer()
+    GPIO.setmode(GPIO.BOARD)
     while(True):
-        GPIO.setmode(GPIO.BOARD)
-        if(check_movement()):
-            turn_on_led(False)
-        else:
-            turn_off_led()
+        if(auto_lights):  # check to switch on lights through auto lighting
+            if(check_movement()):
+                speak("turning on lights")
+                turn_on_led()
+            else:
+                speak("turning off lights")
+                turn_off_led()
         if(check_water_level()):
             speak("turning off water pump")
+        #listen for command
         try:
             with sr.Microphone() as source:
                 print("listening")
@@ -103,9 +102,18 @@ if __name__ == "__main__":
                     speak("turning off")
                     break
                 elif(command == "turn on lights"):
-                    turn_on_led(True)
+                    speak("turning on the lights")
+                    turn_on_led()
                 elif(command == "turn off lights"):
+                    speak("turning off the lights")
                     turn_off_led()
+                elif(command == "turn on auto lights"):
+                    auto_lights = True
+                    speak("auto lights turned on")
+                elif(command == "turn off auto lights"):
+                    auto_lights = False
+                    speak("auto lights turned off")
         except Exception as e:
                 print("Error occured : ", e)
+                speak("could not understand please repeat")
 
