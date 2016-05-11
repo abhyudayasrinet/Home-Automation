@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from subprocess import call
 
-#call(["fswebcam", "-r","640x480","test.jpg","-S","2"])
+call(["fswebcam", "-r","640x480","test.jpg","-S","2"])
 
 #fswebcam -r 640x480 test.jpg -S 2
 

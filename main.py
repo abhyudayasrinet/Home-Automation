@@ -4,6 +4,7 @@ import time
 import dht11
 import RPi.GPIO as GPIO
 import cv2
+import os
 import forecastio
 import requests
 import json
@@ -13,19 +14,7 @@ from datetime import datetime
 from datetime import timedelta
 import pytz
 import tzlocal
-
-auto_lights = False  # indicate if automatics lights are on or off
-
-
-def check_movement():
-    '''
-    return 1 if movement someone's presence is detected
-    else return 0
-    '''
-    GPIO.setup(2, GPIO.IN)
-    GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    movement = GPIO.input(2)
-    return movement
+from bs4 import BeautifulSoup
 
 
 def turn_on_led():
@@ -34,7 +23,7 @@ def turn_on_led():
     '''
     GPIO.setup(4, GPIO.OUT)
     GPIO.output(4, GPIO.HIGH)  # led on
-
+    print("lights on")
 
 def turn_off_led():
     '''
@@ -42,46 +31,16 @@ def turn_off_led():
     '''
     GPIO.setup(4, GPIO.OUT)
     GPIO.output(4, GPIO.LOW)  # led off
-
+    print("lights off")
 
 def speak(message):
     '''
     Speaks out the message
     '''
+    #return #TODO remove this
     audio_stream = subprocess.Popen(["espeak", message])
     audio_stream.wait()
 
-
-def check_water_level():
-    '''
-    check  if water level is almost at the top
-    distance < 5cm
-    '''
-    TRIG = 23
-    ECHO = 24
-
-    GPIO.setup(TRIG, GPIO.OUT)
-    GPIO.setup(ECHO, GPIO.IN)
-
-    GPIO.output(TRIG, False)
-
-    time.sleep(2)
-
-    GPIO.output(TRIG, True)
-    time.sleep(0.00001)
-    GPIO.output(TRIG, False)
-
-    while GPIO.input(ECHO) == 0:
-        pulse_start = time.time()
-
-    while GPIO.input(ECHO) == 1:
-        pulse_end = time.time()
-
-    pulse_duration = pulse_end - pulse_start
-
-    distance = pulse_duration * 17150
-    print("water level : ", distance)
-    return round(distance, 2) < 6
 
 
 def check_door():
@@ -109,30 +68,44 @@ def check_door():
     cv2.imwrite('output.jpg', img)
     return True
 
+def toggle_yellow_led():
+    GPIO.setup(18, GPIO.OUT)
+
+    GPIO.output(18, GPIO.LOW)
+    time.sleep(2)
+    print("yellow led on")
+    GPIO.output(18, GPIO.HIGH)
+    time.sleep(2)
+    print("yellow led off")
+    GPIO.output(18, GPIO.LOW)
 
 def increase_temperature():
     '''
     increases the temperature
     '''
-    GPIO.cleanup()
-    GPIO.setmode(GPIO.BCM)
-
     # read data using pin 14
-    instance = dht11.DHT11(pin=14)
+    instance = dht11.DHT11(pin=17)
     result = instance.read()
     while not result.is_valid():
         result = instance.read()
 
     print("temperature : " + str(result.temperature))
-    speak("current temperature is " + str(result.temperature))
-    speak("increasing temperature now..")
-
+    speak("current temperature is " + str(result.temperature) + " Celsuis. Increasing temperature")
+    toggle_yellow_led()
 
 def decrease_temperature():
     '''
     deceases the temperature
     '''
-    pass
+    # read data using pin 14
+    instance = dht11.DHT11(pin=17)
+    result = instance.read()
+    while not result.is_valid():
+        result = instance.read()
+
+    print("temperature : " + str(result.temperature))
+    speak("current temperature is " + str(result.temperature) + " Celsuis. decreasing temperature")
+    toggle_yellow_led()
 
 
 def weather_forecast():
@@ -156,10 +129,12 @@ def weather_forecast():
     print(datapoint.summary)
     print(datapoint.temperature)
     print(datapoint.precipProbability)
-    speak("weather forecast says " + str(datapoint.summary))
-    speak("Current temperature is " + str(datapoint.temperature) + "Celsius")
-    speak("Probability of rainfall is " + str(datapoint.precipProbability * 100) + "percent")
 
+    message = "weather forecast says " + str(datapoint.summary) + ".\nCurrent temperature is " + str(datapoint.temperature) + "Celsius" + ".\nProbability of rainfall is " + str(datapoint.precipProbability * 100) + "percent"
+    #speak("weather forecast says " + str(datapoint.summary))
+    #speak("Current temperature is " + str(datapoint.temperature) + "Celsius")
+    #speak("Probability of rainfall is " + str(datapoint.precipProbability * 100) + "percent")
+    speak(message)
 
 def get_time_difference(mail_time):
     '''
@@ -181,6 +156,8 @@ def check_mail():
     '''
     checks your email for important tagged mails of the day
     '''
+    print("fetching mail please wait..")
+    list_of_mails = []
     mail = imaplib.IMAP4_SSL('imap.gmail.com', port=993)
     mail.login('abhyu195@gmail.com', 'cullingblade')
     # mail.select('[Gmail]/Drafts')
@@ -228,63 +205,106 @@ def check_mail():
                 mail_subject = item[1]
 
         if(read_mail):
-            print("MAIL " + str(i))
-            print(mail_from)
-            speak("mail from " + mail_from)
-            print(mail_subject)
-            speak("subject is " + mail_subject)
+            #print("MAIL " + str(i))
+            #print(mail_from)
+            #print(mail_subject)
+            #speak("mail from " + mail_from + " with subject " + mail_subject)
+            list_of_mails.append("mail from " + mail_from + " with subject " + mail_subject)
             i += 1
         else:
             break
+    print('.\n'.join(list_of_mails))
+    speak(".\n".join(list_of_mails))
 
 
+def read_news():
+    url = "https://news.google.co.in"
+
+    r = requests.get(url)
+
+    html = r.content
+    soup = BeautifulSoup(html, "html.parser")
+
+    headlines = soup.findAll("span",{"class":"titletext"})
+    todays_news = []
+    i = 0
+    speak("Today's Headlines are")
+    for headline in headlines:
+        #print(headline.text)
+        #speak(headline.text)
+        todays_news.append(headline.text)
+        i += 1
+        if( i == 10):
+            break
+    print(".\n".join(todays_news))
+    speak(".\n".join(todays_news))
+
+
+def activate_security():
+    global security_process
+    intrusion_file = "/home/pi/Home-Automation/intrusion/intrusion.py"
+    security_process = subprocess.Popen(["python", intrusion_file])#, stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.PIPE)
+    print("Intrusion started")
+
+def deactivate_security():
+    global security_process
+    security_process.kill()
+    print("security deactivated")
+
+def activate_auto_lights():
+    global automatic_lights_process
+    automatic_lights_file = "/home/pi/Home-Automation/IR/ir.py"
+    automatic_lights_process = subprocess.Popen(["python", automatic_lights_file])#, stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.PIPE, shell = True)
+    print("auto lights started")
+
+def deactivate_auto_lights():
+    global automatic_lights_process
+    automatic_lights_process.kill()
+    print("auto lights stopped")
+
+automatic_lights_process = None
+security_process = None
 
 if __name__ == "__main__":
-    global auto_lights
-    auto_lights = False
     r = sr.Recognizer()
     GPIO.setmode(GPIO.BCM)
+    turn_off_led()
+    activate_auto_lights()
+    print("Automatic lights started")
+    speak("good morning")
     while(True):
-        if(auto_lights):  # check to switch on lights through auto lighting
-            if(check_movement()):
-                speak("turning on lights")
-                turn_on_led()
-            else:
-                speak("turning off lights")
-                turn_off_led()
-        if(check_water_level()):
-            speak("turning off water pump")
         #listen for command
         try:
-            with sr.Microphone() as source:
-                print("listening")
-                audio = r.listen(source)
-                print("done listening")
-                command = r.recognize_google(audio)
-                command = str(command)
+            #with sr.Microphone() as source:
+                #print("listening")
+                #audio = r.listen(source)
+                #print("done listening")
+                #command = r.recognize_google(audio)
+                #command = str(command)
+                command = raw_input("enter command: ")
                 print("you said " + str(command))
-                if(command == "quit"):
+                if(command == "exit"):
                     speak("turning off")
                     break
+                elif(command == "deactivate automatic lights"):
+                    deactivate_auto_lights()
+                elif(command == "activate security"):
+                    turn_off_led()
+                    deactivate_auto_lights()
+                    activate_security()
+                elif(command == "deactivate security"):
+                    deactivate_security()
+                    activate_auto_lights()
+                elif(command == "good morning"):
+                    speak("good morning to you too")
                 elif(command == "turn on lights"):
+                    deactivate_auto_lights()
                     speak("turning on the lights")
                     turn_on_led()
                 elif(command == "turn off lights"):
+                    activate_auto_lights()
                     speak("turning off the lights")
                     turn_off_led()
-                elif(command == "turn on auto lights"):
-                    auto_lights = True
-                    speak("auto lights turned on")
-                elif(command == "turn off auto lights"):
-                    auto_lights = False
-                    speak("auto lights turned off")
-                elif(command == "check"):
-                    speak("checking the door")
-                    if(check_door()):
-                        speak("someone is at the door")
-                        subprocess.Popen(["xdg-open", "output.jpg"])
-                    else:
-                        speak("there is no one at the door")
                 elif(command == "increase temperature"):
                     speak("increasing temperature")
                     increase_temperature()
@@ -296,6 +316,10 @@ if __name__ == "__main__":
                 elif(command == "check mail"):
                     speak("checking your mail")
                     check_mail()
+                elif(command == "read news"):
+                    read_news()
+                else:
+                    print("unknown command")
         except Exception as e:
                 print("Error occured : ", e)
                 speak("could not understand please repeat")

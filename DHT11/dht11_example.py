@@ -9,7 +9,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.cleanup()
 
 # read data using pin 14
-instance = dht11.DHT11(pin=14)
+instance = dht11.DHT11(pin=17)
 
 while True:
     result = instance.read()
@@ -19,4 +19,4 @@ while True:
         print("Humidity: %d %%" % result.humidity)
     else:
         print("result invalid")
-    time.sleep(1)
+    time.sleep(5)
